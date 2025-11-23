@@ -1,0 +1,15 @@
+.mp4
+.avi
+.mkv
+.zip
+.rar
+.hdf5
+.npy
+.pth
+.pt
+.onnx
+__pycache__
+data
+dataset
+experimentes
+checkpoints

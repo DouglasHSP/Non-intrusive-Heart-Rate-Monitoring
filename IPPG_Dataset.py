@@ -7,47 +7,39 @@ import glob
 from scipy.signal import find_peaks
 
 class IPPGDataset(Dataset):
-    def __init__(self, root_dir, transform=None):
+    def __init__(self, root_dir, transform=None, external_mean=None, external_std=None):
         self.transform = transform
         self.samples = []
 
-        # Coleta todos os pares (cwt, hdf5)
         for npy_path in glob.glob(os.path.join(root_dir, "*", "*", "data", "data_cwt.npy")):
             hdf5_path = os.path.join(os.path.dirname(os.path.dirname(npy_path)), "data.hdf5")
             if os.path.exists(hdf5_path):
                 self.samples.append((npy_path, hdf5_path))
-            else:
-                print(f"[Aviso] HDF5 não encontrado para {npy_path}")
 
-        # === Cálculo da média e desvio padrão global ===
+        # === 1) Se mean/std foram passados externamente (caso do TESTE), não recalcule ===
+        if (external_mean is not None) and (external_std is not None):
+            self.mean_bpm = external_mean
+            self.std_bpm = external_std
+            print("[INFO] Usando mean/std EXTERNOS (vindos do treino).")
+            return
+
+        # === 2) Caso contrário, calcule normalmente (treino) ===
         self.bpm_list = []
-        print("\n[DEBUG] Testando compatibilidade CWT/HDF5:")
 
-        for npy_path, hdf5_path in self.samples[:10]:  # primeiros 10
-            print("\nCWT encontrado:")
-            print("   ", npy_path)
-
-            print("HDF5 esperado:")
-            print("   ", hdf5_path)
-
-            print("HDF5 existe?", os.path.exists(hdf5_path))
-            
         for _, hdf5_path in self.samples:
             with h5py.File(hdf5_path, 'r') as f:
                 pulse = f['/pulse'][:]
                 time = f['/time'][:]
 
                 mask = (time >= 0) & (time <= 9)
-                pulse_9s = pulse[mask]
-                time_9s = time[mask]
-
-                bpm = self.calcular_bpm(pulse_9s, time_9s)
+                bpm = self.calcular_bpm(pulse[mask], time[mask])
                 if not np.isnan(bpm):
                     self.bpm_list.append(bpm)
 
         self.mean_bpm = np.mean(self.bpm_list)
         self.std_bpm = np.std(self.bpm_list)
-        print(f"[INFO] Média BPM global: {self.mean_bpm:.2f}, Desvio padrão: {self.std_bpm:.2f}")
+        print(f"[INFO] Mean BPM TREINO: {self.mean_bpm:.2f}, Std: {self.std_bpm:.2f}")
+
 
     def __len__(self):
         return len(self.samples)

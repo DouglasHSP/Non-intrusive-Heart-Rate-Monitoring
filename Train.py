@@ -1,11 +1,12 @@
 import torch
 from torch.utils.data import DataLoader
 from IPPG_Dataset import IPPGDataset
-from Model_CNN import IPPGCNN
+from VIPHL_Dataset.Model_CNN import IPPGCNN
 import torch.optim as optim
 import torch.nn as nn
 import os
 import matplotlib.pyplot as plt
+import numpy as np
 
 def train(train_root, val_root, save_model_path="model_cnn_ippg.pth"):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -15,13 +16,13 @@ def train(train_root, val_root, save_model_path="model_cnn_ippg.pth"):
     train_dataset = IPPGDataset(root_dir=train_root)
     val_dataset = IPPGDataset(root_dir=val_root)
 
-    train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=8, shuffle=False)
 
     model = IPPGCNN().to(device)
 
     criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=1e-3) # learning rate
+    optimizer = optim.Adam(model.parameters(), lr=3e-4, weight_decay=1e-5) # learning rate
 
     epochs = 50
     train_losses = []
@@ -63,13 +64,17 @@ def train(train_root, val_root, save_model_path="model_cnn_ippg.pth"):
     # Salvar modelo treinado
     torch.save(model.state_dict(), save_model_path)
     print(f"Modelo salvo em: {save_model_path}")
+    
+    # Salvando Media de desvio padrão das bases de treinamento e validação
+    np.save("bpm_mean_std.npy", np.array([train_dataset.mean_bpm, train_dataset.std_bpm]))
 
+    
     # Plotar gráfico de loss
     plt.figure(figsize=(8, 5))
     plt.plot(train_losses, label="Train Loss", marker='o')
     plt.plot(val_losses, label="Validation Loss", marker='s')
     plt.xlabel("Epoch")
-    plt.ylabel("Loss (MSE)")
+    plt.ylabel("Loss (MAE)")
     plt.title("Evolução do Loss por Época")
     plt.legend()
     plt.grid(True)

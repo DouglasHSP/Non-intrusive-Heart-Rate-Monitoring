@@ -1,32 +1,38 @@
 import torch
 import torch.nn as nn
 
-class IPPGCNN02(nn.Module):
-    def __init__(self, input_shape=(1, 74, 261)):
-        super(IPPGCNN02, self).__init__()
-        
-        # Camadas convolucionais
-        self.conv1 = nn.Conv2d(1, 128, kernel_size=3, stride=1, padding=1)
-        self.relu = nn.ReLU()
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2, padding=1)
-        self.dropout = nn.Dropout(0.5)
+class IPPGCNN(nn.Module):
+    def __init__(self):
+        super(IPPGCNN, self).__init__()
 
-        # Calcula automaticamente o tamanho do flatten
-        with torch.no_grad():
-            dummy = torch.zeros(1, *input_shape)
-            dummy_out = self.pool(self.relu(self.conv1(dummy)))
-            self.flatten_dim = dummy_out.numel()
-            print(f"[DEBUG] Tamanho flatten calculado: {self.flatten_dim}")
+        self.conv = nn.Sequential(
+            nn.Conv1d(74, 128, kernel_size=5, padding=2),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.MaxPool1d(2),
 
-        # Camadas totalmente conectadas
-        self.fc1 = nn.Linear(self.flatten_dim, 64)
-        self.fc2 = nn.Linear(64, 32)
-        self.out = nn.Linear(32, 1)
+            nn.Conv1d(128, 256, kernel_size=5, padding=2),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.MaxPool1d(2),
+
+            nn.Conv1d(256, 256, kernel_size=5, padding=2),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.AdaptiveAvgPool1d(1)
+        )
+
+        self.fc = nn.Sequential(
+            nn.Linear(256, 64),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(64, 1)
+        )
 
     def forward(self, x):
-        x = self.pool(self.relu(self.conv1(x)))
-        x = x.view(x.size(0), -1)
-        x = self.dropout(self.relu(self.fc1(x)))
-        x = self.relu(self.fc2(x))
-        x = self.out(x)
+        # entrada esperada: [batch, 1, 74, 180]
+        x = x.squeeze(1)          # vira [batch, 74, 180]
+        x = self.conv(x)
+        x = x.squeeze(-1)         # vira [batch, 256]
+        x = self.fc(x)
         return x
